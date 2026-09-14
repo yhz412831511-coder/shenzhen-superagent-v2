@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Outlet, useLocation, useNavigate, Link } from 'react-router-dom'
+import { Outlet, useLocation, Link } from 'react-router-dom'
 
 interface NavItem {
   to: string
@@ -64,7 +64,6 @@ function isItemActive(item: NavItem, pathname: string, search: string): boolean 
 export default function Layout() {
   const [dark, setDark] = useState(false)
   const location = useLocation()
-  const navigate = useNavigate()
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
@@ -72,9 +71,18 @@ export default function Layout() {
 
   const isAdmin = location.pathname.startsWith('/admin')
   const nav = isAdmin ? adminNav : userNav
-  const currentTitle = Object.entries(pageTitles).find(([key]) =>
-    location.pathname.startsWith(key)
-  )?.[1] || '政务事项工作台'
+  const currentTab = new URLSearchParams(location.search).get('tab') || ''
+  const workbenchTabTitles: Record<string, string> = {
+    pending: '等我确认',
+    memory: '工作记忆',
+    ability: '专业能力',
+    system: '系统连接',
+  }
+  const currentTitle = currentTab && !isAdmin
+    ? workbenchTabTitles[currentTab] || '政务事项工作台'
+    : Object.entries(pageTitles).find(([key]) =>
+        location.pathname.startsWith(key)
+      )?.[1] || '政务事项工作台'
 
   return (
     <div className="app-layout">
