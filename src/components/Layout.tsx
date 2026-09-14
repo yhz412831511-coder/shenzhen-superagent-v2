@@ -1,17 +1,24 @@
 import { useState, useEffect } from 'react'
-import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate, Link } from 'react-router-dom'
 
-const userNav = [
-  { to: '/workbench', label: '今日工作', icon: '◐' },
+interface NavItem {
+  to: string
+  label: string
+  icon: string
+  end?: boolean
+}
+
+const userNav: NavItem[] = [
+  { to: '/workbench', label: '今日工作', icon: '◐', end: true },
   { to: '/matter/all', label: '事项中心', icon: '◈' },
   { to: '/meeting-prep/MATTER-2026-0912', label: '会议与督办', icon: '≑' },
-  { to: '/workbench#pending', label: '等我确认', icon: '✓' },
-  { to: '/workbench#memory', label: '工作记忆', icon: '☰' },
-  { to: '/workbench#ability', label: '专业能力', icon: '⚙' },
-  { to: '/workbench#system', label: '系统连接', icon: '⌘' },
+  { to: '/workbench?tab=pending', label: '等我确认', icon: '✓' },
+  { to: '/workbench?tab=memory', label: '工作记忆', icon: '☰' },
+  { to: '/workbench?tab=ability', label: '专业能力', icon: '⚙' },
+  { to: '/workbench?tab=system', label: '系统连接', icon: '⌘' },
 ]
 
-const adminNav = [
+const adminNav: NavItem[] = [
   { to: '/admin', label: '运行总览', icon: '◎', end: true },
   { to: '/admin/task/TASK-20260910-0086', label: '单任务全链路', icon: '🔗' },
   { to: '/admin/data-risk', label: '数据风险流向', icon: '⚠' },
@@ -40,9 +47,24 @@ const pageTitles: Record<string, string> = {
   '/admin/evolution': '经验池与受控进化',
 }
 
+function isItemActive(item: NavItem, pathname: string, search: string): boolean {
+  const [itemPath, queryStr] = item.to.split('?')
+  const itemTab = queryStr ? queryStr.split('=')[1] : ''
+  const currentTab = new URLSearchParams(search).get('tab') || ''
+
+  if (itemTab) {
+    return pathname === itemPath && currentTab === itemTab
+  }
+  if (item.end) {
+    return pathname === itemPath && !currentTab
+  }
+  return pathname.startsWith(itemPath)
+}
+
 export default function Layout() {
   const [dark, setDark] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
@@ -65,41 +87,35 @@ export default function Layout() {
           <div className="sidebar-section">
             <div className="sidebar-section-title">{isAdmin ? '管理端' : '用户端'}</div>
             {nav.map((item) => {
-              const hash = item.to.includes('#') ? item.to.split('#')[1] : ''
-              const pathOnly = item.to.split('#')[0]
-              const active = hash
-                ? location.pathname === pathOnly && location.hash === '#' + hash
-                : (item as any).end
-                  ? location.pathname === pathOnly
-                  : location.pathname.startsWith(pathOnly)
+              const active = isItemActive(item, location.pathname, location.search)
               return (
-                <NavLink
+                <a
                   key={item.to}
-                  to={item.to}
+                  href={`#${item.to}`}
                   className={`sidebar-link ${active ? 'active' : ''}`}
                 >
                   <span className="sidebar-link-icon">{item.icon}</span>
                   <span>{item.label}</span>
-                </NavLink>
+                </a>
               )
             })}
           </div>
           {!isAdmin && (
             <div className="sidebar-section">
               <div className="sidebar-section-title">切换</div>
-              <NavLink to="/admin" className="sidebar-link">
+              <Link to="/admin" className="sidebar-link">
                 <span className="sidebar-link-icon">◎</span>
                 <span>管理端</span>
-              </NavLink>
+              </Link>
             </div>
           )}
           {isAdmin && (
             <div className="sidebar-section">
               <div className="sidebar-section-title">切换</div>
-              <NavLink to="/workbench" className="sidebar-link">
+              <Link to="/workbench" className="sidebar-link">
                 <span className="sidebar-link-icon">◐</span>
                 <span>用户端</span>
-              </NavLink>
+              </Link>
             </div>
           )}
         </nav>
