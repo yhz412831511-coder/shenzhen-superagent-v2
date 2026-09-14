@@ -64,19 +64,25 @@ export default function Layout() {
         <nav className="sidebar-nav">
           <div className="sidebar-section">
             <div className="sidebar-section-title">{isAdmin ? '管理端' : '用户端'}</div>
-            {nav.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={(item as any).end}
-                className={({ isActive }) =>
-                  `sidebar-link ${isActive ? 'active' : ''}`
-                }
-              >
-                <span className="sidebar-link-icon">{item.icon}</span>
-                <span>{item.label}</span>
-              </NavLink>
-            ))}
+            {nav.map((item) => {
+              const hash = item.to.includes('#') ? item.to.split('#')[1] : ''
+              const pathOnly = item.to.split('#')[0]
+              const active = hash
+                ? location.pathname === pathOnly && location.hash === '#' + hash
+                : (item as any).end
+                  ? location.pathname === pathOnly
+                  : location.pathname.startsWith(pathOnly)
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={`sidebar-link ${active ? 'active' : ''}`}
+                >
+                  <span className="sidebar-link-icon">{item.icon}</span>
+                  <span>{item.label}</span>
+                </NavLink>
+              )
+            })}
           </div>
           {!isAdmin && (
             <div className="sidebar-section">
