@@ -1,15 +1,15 @@
 import { experiences, skillVersions } from '../../data/fixtures'
 
 function outcomeBadge(outcome: string) {
-  if (outcome === 'success') return <span className="badge badge-success">成功</span>
-  return <span className="badge badge-danger">失败</span>
+  if (outcome === 'success') return <span className="ad-badge ad-badge-green">成功</span>
+  return <span className="ad-badge ad-badge-red">失败</span>
 }
 
 function statusBadge(status: string) {
-  if (status === '已发布') return <span className="badge badge-success">已发布</span>
-  if (status === '试运行') return <span className="badge badge-warning">试运行</span>
-  if (status === '待审批') return <span className="badge badge-info">待审批</span>
-  return <span className="badge badge-muted">{status}</span>
+  if (status === '已发布') return <span className="ad-badge ad-badge-green">已发布</span>
+  if (status === '试运行') return <span className="ad-badge ad-badge-amber">试运行</span>
+  if (status === '待审批') return <span className="ad-badge ad-badge-cyan">待审批</span>
+  return <span className="ad-badge ad-badge-muted">{status}</span>
 }
 
 const comparisonMetrics = [
@@ -31,102 +31,109 @@ const thresholdChecks = [
 
 export default function ExperienceEvolution() {
   return (
-    <div>
-      <div className="page-header">
-        <div className="page-title">经验池/Skill/工作流进化与版本对比<span className="demo-label">演示样例</span></div>
-        <div className="page-subtitle">经验采集 → 脱敏 → 归因 → 候选 → 评测 → 审批 → 试运行 → 发布</div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 'var(--space-5)', background: 'var(--muted)' }}>
-        <div style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', lineHeight: 1.6 }}>
-          <strong style={{ color: 'var(--foreground)' }}>经验采集 → 脱敏 → 归因 → 候选 → 评测 → 审批 → 试运行 → 发布。</strong>
-          每条经验经过脱敏和归因后形成候选模式，通过回归测试和发布门槛审核后进入试运行，试运行通过后正式发布为Skill新版本。
+    <div className="ad-page">
+      <div className="ad-header">
+        <div>
+          <div className="ad-header-title">经验与进化</div>
+          <div className="ad-header-sub">经验采集 → 脱敏 → 归因 → 候选 → 评测 → 审批 → 试运行 → 发布</div>
+        </div>
+        <div className="ad-env">
+          <span className="ad-env-badge"><i />演示样例 · 2 条候选经验</span>
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+      {/* 经验池 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
         {experiences.map((exp) => (
-          <div key={exp.id} className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
+          <div className="ad-card" key={exp.id}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-4)', marginBottom: 'var(--space-3)', flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>触发条件</div>
-                <div style={{ fontSize: 'var(--text-sm)', marginTop: '2px' }}>{exp.trigger}</div>
+                <div className="ad-kpi-label">触发条件</div>
+                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--ad-text)', marginTop: '2px' }}>{exp.trigger}</div>
               </div>
               <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
                 {outcomeBadge(exp.outcome)}
                 {statusBadge(exp.status)}
-                <span className="tag">{exp.version}</span>
+                <span className="ad-badge ad-badge-blue ad-num">{exp.version}</span>
               </div>
             </div>
 
             <div style={{ marginBottom: 'var(--space-3)' }}>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>模式名：</span>
-              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--primary)' }}>{exp.pattern}</span>
+              <span className="ad-kpi-label">模式名：</span>
+              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--ad-cyan)' }}>{exp.pattern}</span>
             </div>
 
             <div style={{ marginBottom: 'var(--space-3)' }}>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)', marginBottom: 'var(--space-1)' }}>执行序列</div>
+              <div className="ad-kpi-label" style={{ marginBottom: 'var(--space-1)' }}>执行序列</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', flexWrap: 'wrap' }}>
                 {exp.sequence.map((step, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
+                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)' }}>
                     <span style={{
                       padding: '4px 10px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--muted)',
+                      borderRadius: '4px',
+                      background: 'rgba(0, 212, 255, 0.06)',
+                      border: '1px solid var(--ad-border-soft)',
                       fontSize: 'var(--text-xs)',
-                      fontWeight: 500,
+                      color: 'var(--ad-text)',
                     }}>{step}</span>
                     {i < exp.sequence.length - 1 && (
-                      <span style={{ color: 'var(--muted-foreground)', fontSize: 'var(--text-sm)' }}>→</span>
+                      <span style={{ color: 'var(--ad-muted)', fontSize: 'var(--text-xs)' }}>→</span>
                     )}
-                  </div>
+                  </span>
                 ))}
               </div>
             </div>
 
-            <div className="grid grid-4" style={{ marginBottom: 'var(--space-3)' }}>
-              <div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>样本数</div>
-                <div style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>{exp.samples}</div>
+            <div className="ad-grid-2 mb-4" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-3)' }}>
+              <div className="ad-metric">
+                <span className="k">样本数</span>
+                <span className="v" style={{ fontSize: 'var(--text-md)' }}>{exp.samples}</span>
               </div>
-              <div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>失败数</div>
-                <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: exp.failures > 0 ? 'var(--danger)' : 'var(--success)' }}>{exp.failures}</div>
+              <div className="ad-metric">
+                <span className="k">失败数</span>
+                <span className="v" style={{ fontSize: 'var(--text-md)', color: exp.failures > 0 ? 'var(--ad-red)' : 'var(--ad-green)' }}>{exp.failures}</span>
               </div>
-              <div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>置信度</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                  <div style={{ flex: 1, height: '8px', background: 'var(--muted)', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div style={{ width: `${exp.confidence * 100}%`, height: '100%', background: 'var(--success)', borderRadius: '4px' }} />
-                  </div>
-                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>{(exp.confidence * 100).toFixed(0)}%</span>
+              <div className="ad-metric">
+                <span className="k">置信度</span>
+                <span className="v" style={{ fontSize: 'var(--text-md)' }}>{(exp.confidence * 100).toFixed(0)}%</span>
+                <div style={{ height: '6px', background: 'rgba(138,163,199,0.12)', borderRadius: '3px', overflow: 'hidden', marginTop: '4px', width: '80%' }}>
+                  <div style={{ width: `${exp.confidence * 100}%`, height: '100%', background: 'var(--ad-green)' }} />
                 </div>
               </div>
-              <div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>版本</div>
-                <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--primary)' }}>{exp.version}</div>
+              <div className="ad-metric">
+                <span className="k">版本</span>
+                <span className="v ad-num" style={{ fontSize: 'var(--text-md)', color: 'var(--ad-cyan)' }}>{exp.version}</span>
               </div>
             </div>
 
-            <div style={{ padding: 'var(--space-3)', background: 'var(--muted)', borderRadius: 'var(--radius-sm)' }}>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)', marginBottom: 'var(--space-1)' }}>改进说明</div>
-              <div style={{ fontSize: 'var(--text-sm)' }}>{exp.improvements}</div>
+            <div style={{
+              padding: 'var(--space-3)',
+              background: 'rgba(17, 27, 48, 0.6)',
+              border: '1px solid var(--ad-border-soft)',
+              borderRadius: 'var(--radius-sm)',
+            }}>
+              <div className="ad-kpi-label" style={{ marginBottom: 'var(--space-1)' }}>改进说明</div>
+              <div style={{ fontSize: 'var(--text-sm)', color: 'var(--ad-text)' }}>{exp.improvements}</div>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="card" style={{ marginTop: 'var(--space-5)' }}>
-        <div className="card-title">{skillVersions.name} · 版本对比</div>
+      {/* 版本对比 */}
+      <div className="ad-card mt-4">
+        <div className="ad-card-title">
+          {skillVersions.name} · 版本对比
+          <span className="sub">候选版本须全部通过发布门槛</span>
+        </div>
         <div style={{ overflowX: 'auto' }}>
-          <table>
+          <table className="ad-table">
             <thead>
               <tr>
                 <th>对比维度</th>
                 <th style={{ width: '130px' }}>当前版本 {skillVersions.current.version}</th>
                 <th style={{ width: '30px' }}></th>
                 <th style={{ width: '130px' }}>候选版本 {skillVersions.candidate.version}</th>
-                <th>变化</th>
+                <th style={{ width: '110px' }}>变化</th>
               </tr>
             </thead>
             <tbody>
@@ -136,28 +143,23 @@ export default function ExperienceEvolution() {
                 const delta = m.lower ? m.current - m.candidate : m.candidate - m.current
                 return (
                   <tr key={m.label}>
-                    <td style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>{m.label}</td>
-                    <td style={{ fontSize: 'var(--text-sm)', fontFamily: 'var(--font-code)' }}>
+                    <td style={{ fontWeight: 500 }}>{m.label}</td>
+                    <td className="ad-num" style={{ color: 'var(--ad-muted)' }}>
                       {m.decimal ? m.current.toFixed(1) : m.current}{m.unit}
                     </td>
-                    <td style={{ textAlign: 'center', color: 'var(--muted-foreground)' }}>→</td>
-                    <td style={{
-                      fontSize: 'var(--text-sm)',
-                      fontFamily: 'var(--font-code)',
-                      color: isImproved ? 'var(--success)' : isSame ? 'var(--muted-foreground)' : 'var(--danger)',
-                      fontWeight: isImproved ? 600 : 400,
-                    }}>
+                    <td style={{ textAlign: 'center', color: 'var(--ad-muted)' }}>→</td>
+                    <td className="ad-num" style={{ color: isImproved ? 'var(--ad-green)' : isSame ? 'var(--ad-muted)' : 'var(--ad-red)', fontWeight: isImproved ? 600 : 400 }}>
                       {m.decimal ? m.candidate.toFixed(1) : m.candidate}{m.unit}
                     </td>
                     <td>
                       {isSame ? (
-                        <span className="badge badge-muted">持平</span>
+                        <span className="ad-badge ad-badge-muted">持平</span>
                       ) : isImproved ? (
-                        <span className="badge badge-success">
+                        <span className="ad-badge ad-badge-green">
                           {m.lower ? '↓' : '↑'} {m.decimal ? Math.abs(delta).toFixed(1) : Math.abs(delta)}{m.unit}
                         </span>
                       ) : (
-                        <span className="badge badge-danger">
+                        <span className="ad-badge ad-badge-red">
                           {m.lower ? '↑' : '↓'} {m.decimal ? Math.abs(delta).toFixed(1) : Math.abs(delta)}{m.unit}
                         </span>
                       )}
@@ -170,36 +172,30 @@ export default function ExperienceEvolution() {
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 'var(--space-5)' }}>
-        <div className="card-title">发布门槛</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      {/* 发布门槛 */}
+      <div className="ad-card mt-4">
+        <div className="ad-card-title">
+          发布门槛
+          <span className="sub">回归样本 {skillVersions.regressionSamples} · 来源案例 {skillVersions.sourceCases}</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {thresholdChecks.map((t) => (
-            <div key={t.label} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-2)', borderBottom: '1px solid var(--border)' }}>
-              <span style={{ width: '120px', fontSize: 'var(--text-sm)', fontWeight: 500 }}>{t.label}</span>
-              <span style={{ flex: 1, fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)' }}>{t.threshold}</span>
-              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)' }}>候选值：</span>
-              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, fontFamily: 'var(--font-code)' }}>{t.candidate}</span>
-              <span className={`badge ${t.passed ? 'badge-success' : 'badge-danger'}`}>{t.passed ? '通过' : '未通过'}</span>
+            <div key={t.label} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3) 0', borderBottom: '1px solid var(--ad-border-soft)' }}>
+              <span style={{ width: '110px', fontSize: 'var(--text-sm)', fontWeight: 500 }}>{t.label}</span>
+              <span style={{ flex: 1, fontSize: 'var(--text-sm)', color: 'var(--ad-muted)' }}>{t.threshold}</span>
+              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--ad-muted)' }}>候选值：</span>
+              <span className="ad-num" style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{t.candidate}</span>
+              <span className={`ad-badge ${t.passed ? 'ad-badge-green' : 'ad-badge-red'}`}>{t.passed ? '通过' : '未通过'}</span>
             </div>
           ))}
-          <div style={{ display: 'flex', gap: 'var(--space-5)', padding: 'var(--space-3)', background: 'var(--muted)', borderRadius: 'var(--radius-sm)' }}>
-            <div>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>回归样本数：</span>
-              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{skillVersions.regressionSamples}</span>
-            </div>
-            <div>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>来源案例数：</span>
-              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{skillVersions.sourceCases}</span>
-            </div>
-          </div>
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 'var(--space-5)', background: 'var(--muted)' }}>
-        <div style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', lineHeight: 1.6 }}>
-          <strong style={{ color: 'var(--foreground)' }}>Skill和Agent工作流支持编辑、新版本、测试、审批、试运行、监控和回退。</strong>
-          每个Skill版本经过完整生命周期管理，确保变更可控、可回退、可审计。
-        </div>
+      <div className="ad-alert" style={{ marginTop: 'var(--space-4)' }}>
+        <span>↗</span>
+        <span>
+          Skill 和 Agent 工作流支持编辑、新版本、测试、审批、试运行、监控和回退。每条经验经脱敏和归因后形成候选模式，通过回归测试和发布门槛审核后进入试运行，确保变更可控、可回退、可审计。
+        </span>
       </div>
     </div>
   )

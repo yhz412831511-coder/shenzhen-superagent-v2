@@ -370,19 +370,22 @@ export const impactChain = {
 }
 
 export const tokenUsage = {
-  cityBudget: 50000000,
-  cityUsed: 41200000,
+  cityBudget: 1231000000,
+  cityUsed: 842000000,
+  cityBaseline: 1035000000,
+  monthSavedYi: 1.93,
+  monthSavedCost: '¥5.8 万',
   departments: [
-    { name: '政数局', budget: 14000000, used: 11880000, percentage: 28, tasks: 480, matters: 42 },
-    { name: '人社局', used: 6600000, percentage: 16, tasks: 280, matters: 18 },
-    { name: '住建局', used: 4800000, percentage: 11, tasks: 195, matters: 12 },
-    { name: '发改委', used: 3200000, percentage: 7, tasks: 130, matters: 8 },
-    { name: '其他部门', used: 14720000, percentage: 38, tasks: 520, matters: 30 },
+    { name: '政数局', budget: 344000000, used: 236000000, percentage: 28, tasks: 480, matters: 42 },
+    { name: '人社局', used: 135000000, percentage: 16, tasks: 280, matters: 18 },
+    { name: '住建局', used: 93000000, percentage: 11, tasks: 195, matters: 12 },
+    { name: '发改委', used: 59000000, percentage: 7, tasks: 130, matters: 8 },
+    { name: '其他部门', used: 319000000, percentage: 38, tasks: 520, matters: 30 },
   ],
   models: [
-    { name: '轻量模型', percentage: 48, tokens: 19776000 },
-    { name: '通用模型', percentage: 37, tokens: 15244000 },
-    { name: '强推理模型', percentage: 15, tokens: 6180000 },
+    { name: '轻量模型', percentage: 48, tokens: 404000000 },
+    { name: '通用模型', percentage: 37, tokens: 312000000 },
+    { name: '强推理模型', percentage: 15, tokens: 126000000 },
   ],
   resultAttribution: [
     { name: '成功任务', percentage: 86, color: 'success' },
@@ -403,10 +406,10 @@ export const tokenUsage = {
     ],
   },
   savings: [
-    { type: '模型路由节省', baseline: 22000, actual: 14880, overhead: 800, saved: 6320 },
-    { type: '缓存节省', baseline: 16400, actual: 2800, overhead: 200, saved: 13400 },
-    { type: '上下文节省', baseline: 18000, actual: 12400, overhead: 400, saved: 5200 },
-    { type: '循环控制节省', baseline: 8000, actual: 0, overhead: 0, saved: 8000 },
+    { type: '缓存复用', baseline: 286000000, actual: 205000000, overhead: 0, saved: 81000000 },
+    { type: '模型融合', baseline: 224000000, actual: 164000000, overhead: 0, saved: 60000000 },
+    { type: '上下文压缩', baseline: 168000000, actual: 131000000, overhead: 0, saved: 37000000 },
+    { type: '提示词调优', baseline: 79000000, actual: 64000000, overhead: 0, saved: 15000000 },
   ],
 }
 
@@ -609,3 +612,6 @@ export const aiExecutionCards = {
     ],
   },
 }
+
+export * from './fixtures-party'
+export * from './fixtures-nav'

@@ -1,4 +1,5 @@
-import { aiExecutionCards, tokenUsage } from '../../data/fixtures'
+import { partyAiExecutionCards, partyTokenUsage } from '../../data/fixtures-party'
+import { taskRoutingLine } from '../../utils/model-routing'
 
 const cardKeys = ['why', 'used', 'did', 'controlled', 'trustworthy'] as const
 
@@ -12,7 +13,7 @@ const cardAccent: Record<string, { color: string; bg: string }> = {
 
 const stepColors = ['var(--primary)', 'var(--success)', 'var(--warning)', 'var(--chart-5)', 'var(--danger)', 'var(--chart-1)', 'var(--muted-foreground)']
 
-const steps = tokenUsage.taskBreakdown.steps
+const steps = partyTokenUsage.steps
 const totals = steps.reduce(
   (acc, s) => ({
     input: acc.input + s.input,
@@ -43,7 +44,7 @@ export default function AIExecution() {
       <div className="page-header">
         <h1 className="page-title">AI执行说明与完整回放</h1>
         <p className="page-subtitle">
-          task_id=TASK-20260910-0086 · matter_id=MATTER-2026-0912 · trace_id=TRACE-20260914-0920-0086
+          task_id={partyTokenUsage.taskId} · matter_id=MATTER-2026-0918 · trace_id={partyTokenUsage.traceId} · 演示样例
         </p>
       </div>
 
@@ -51,7 +52,7 @@ export default function AIExecution() {
         <h2 className="card-title" style={{ marginBottom: 'var(--space-4)' }}>AI执行说明</h2>
         <div className="grid grid-3" style={{ gap: 'var(--space-4)' }}>
           {cardKeys.map((key) => {
-            const card = aiExecutionCards[key]
+            const card = partyAiExecutionCards[key]
             const accent = cardAccent[key]
             return (
               <div key={key} className="card" style={{ borderTop: `3px solid ${accent.color}` }}>
@@ -123,15 +124,19 @@ export default function AIExecution() {
         >
           <div style={{ fontSize: 'var(--text-sm)' }}>
             <span style={{ color: 'var(--muted-foreground)' }}>task_id: </span>
-            <span style={{ fontFamily: 'var(--font-code)', color: 'var(--primary)', fontWeight: 500 }}>TASK-20260910-0086</span>
+            <span style={{ fontFamily: 'var(--font-code)', color: 'var(--primary)', fontWeight: 500 }}>{partyTokenUsage.taskId}</span>
           </div>
           <div style={{ fontSize: 'var(--text-sm)' }}>
             <span style={{ color: 'var(--muted-foreground)' }}>matter_id: </span>
-            <span style={{ fontFamily: 'var(--font-code)', color: 'var(--success)', fontWeight: 500 }}>MATTER-2026-0912</span>
+            <span style={{ fontFamily: 'var(--font-code)', color: 'var(--success)', fontWeight: 500 }}>MATTER-2026-0918</span>
           </div>
           <div style={{ fontSize: 'var(--text-sm)' }}>
             <span style={{ color: 'var(--muted-foreground)' }}>trace_id: </span>
-            <span style={{ fontFamily: 'var(--font-code)', color: 'var(--chart-5)', fontWeight: 500 }}>TRACE-20260914-0920-0086</span>
+            <span style={{ fontFamily: 'var(--font-code)', color: 'var(--chart-5)', fontWeight: 500 }}>{partyTokenUsage.traceId}</span>
+          </div>
+          <div style={{ fontSize: 'var(--text-sm)' }}>
+            <span style={{ color: 'var(--muted-foreground)' }}>任务级路由: </span>
+            <span style={{ color: 'var(--primary)', fontWeight: 500 }}>{taskRoutingLine().replace('任务级路由：', '')}</span>
           </div>
         </div>
 
@@ -255,7 +260,7 @@ export default function AIExecution() {
                 </tr>
               </thead>
               <tbody>
-                {tokenUsage.savings.map((s, idx) => (
+                {partyTokenUsage.savings.map((s, idx) => (
                   <tr key={idx}>
                     <td style={{ fontSize: 'var(--text-sm)' }}>{s.type}</td>
                     <td style={{ textAlign: 'right', fontFamily: 'var(--font-code)', fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>{fmtNum(s.baseline)}</td>
@@ -270,7 +275,7 @@ export default function AIExecution() {
                   <td></td>
                   <td></td>
                   <td style={{ textAlign: 'right', fontFamily: 'var(--font-code)', fontWeight: 700, color: 'var(--success)' }}>
-                    -{fmtNum(tokenUsage.savings.reduce((a, s) => a + s.saved, 0))}
+                    -{fmtNum(partyTokenUsage.savings.reduce((a, s) => a + s.saved, 0))}
                   </td>
                 </tr>
               </tbody>

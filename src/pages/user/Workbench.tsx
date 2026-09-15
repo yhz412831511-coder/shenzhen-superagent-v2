@@ -1,676 +1,466 @@
-import { Link, useLocation } from 'react-router-dom'
-import { matters, memoryTypes, experiences, mcpTools, sdkApps, tasks } from '../../data/fixtures'
+import { useMemo, useRef, useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import {
+  partyPresetCategories,
+  partyOpeningPrompt,
+  partyContextChips,
+  partyTodos,
+  partyDoneMatters,
+  partyRecentUsedMemories,
+  partyRecentLearnedMemories,
+  partyTaskId,
+} from '../../data/fixtures-party'
+import { ChatFlow } from '../../components/chat/ChatFlow'
+import { InputConfig } from '../../components/chat/InputConfig'
+import type { ScriptMessage } from '../../components/chat/useChatScript'
+import { partyTaskFlow } from '../../config/task-flows'
+import { getStoryState, resetStoryState, setStoryState } from '../../utils/story-state'
 
-const quickStarts = [
-  { label: '准备会议', path: '/meeting-prep/MATTER-2026-0912' },
-  { label: '处理来文', path: '/matter/MATTER-2026-0820' },
-  { label: '跟踪督办', path: '/matter/MATTER-2026-0912' },
-  { label: '核验项目', path: '/matter/MATTER-2026-0901' },
-  { label: '专业审查', path: '/matter/MATTER-2026-0912' },
+const heroSteps = [
+  { label: '识别新建或续办' },
+  { label: '连通授权记忆与系统' },
+  { label: '沟通人机协商确认' },
+  { label: '全过程可追踪' },
 ]
 
-const alerts = [
-  { type: 'danger', title: '口径冲突待确认', desc: '会议纪要85% vs 系统数据72%，需住建局确认', matterId: 'MATTER-2026-0912' },
-  { type: 'warning', title: '一件事联调进度', desc: '联调测试45%，距9月25日上线还有11天', matterId: 'MATTER-2026-0912' },
-  { type: 'warning', title: '部门反馈缺2个', desc: '省级督查报送5/7部门已回复，明日17:00截止', matterId: 'MATTER-2026-0820' },
+const quickCards = [
+  { icon: '📅', title: '准备会议', sub: '党组会 / 办公会 · 会前材料', prompt: partyOpeningPrompt, bg: 'rgba(31, 94, 255, 0.10)', color: 'var(--primary)' },
+  { icon: '🗎', title: '处理来文', sub: '上级来文 · 转办与拟复', prompt: '帮我办理市政府办转来的这份专项督查来文', bg: 'rgba(0, 169, 114, 0.10)', color: 'var(--success)' },
+  { icon: '⧉', title: '发起督办', sub: '任务分解 · 跟踪与催办', prompt: '帮我跟进近期重点督办任务的执行情况', bg: 'rgba(255, 140, 0, 0.10)', color: 'var(--warning)' },
+  { icon: '⚙', title: '专业核验', sub: '口径一致性 · 交叉验证', prompt: '帮我核验这份报告里各处数据的口径一致性', bg: 'rgba(139, 92, 246, 0.10)', color: '#8b5cf6' },
 ]
 
-const pendingConfirms = [
-  { title: '项目数据口径冲突确认', desc: '会议纪要85% vs 系统数据72%，以哪个为准？', matterId: 'MATTER-2026-0912' },
-  { title: '试点延期审批提交', desc: '责任人未明确，期限未明确，需指定责任人并确认截止', matterId: 'MATTER-2026-0912' },
-  { title: '一件事联调方案确认', desc: '政数局提交联调方案，需确认跨部门协同时间表', matterId: 'MATTER-2026-0912' },
-]
-
-const matterStatusMap: Record<string, { label: string; badge: string }> = {
-  active: { label: '进行中', badge: 'badge-info' },
-  pending: { label: '待处理', badge: 'badge-warning' },
-  overdue: { label: '已超期', badge: 'badge-danger' },
-  completed: { label: '已完成', badge: 'badge-success' },
+const prioColors: Record<string, string> = {
+  danger: 'var(--danger)',
+  warning: 'var(--warning)',
+  info: 'var(--primary)',
+  muted: 'var(--muted-foreground)',
 }
 
-function TodayView() {
+export default function Workbench() {
+  const navigate = useNavigate()
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [story, setStory] = useState(() => getStoryState())
+
+  const [input, setInput] = useState(partyOpeningPrompt)
+  const [sentText, setSentText] = useState('')
+  const [sent, setSent] = useState(false)
+  const [modelChoice, setModelChoice] = useState(() => getStoryState().modelChoice || 'auto')
+  const [permission, setPermission] = useState('confirm')
+  const [chips, setChips] = useState(partyContextChips)
+  const [expandedCat, setExpandedCat] = useState<string | null>(null)
+  const [chosenAction, setChosenAction] = useState<string>()
+
+  const script: ScriptMessage[] = useMemo(
+    () => [
+      { id: 'm1', role: 'user', text: sentText },
+      {
+        id: 'm2',
+        role: 'assistant',
+        text: '已识别任务类型：办会 · 会前准备。\n关联事项：局党组第13次会议（2026-09-18 周五 09:00 · 局机关三楼党组会议室）。',
+      },
+      {
+        id: 'm3',
+        role: 'assistant',
+        text: '根据过往经验（第11/12次党组会会前准备），此类任务通常包含 3 个分项：\n① 上次党组会任务及处理情况核查\n② 本次会议各处室议题征集\n③ 近期重要督办任务执行情况汇报',
+      },
+      {
+        id: 'm4',
+        role: 'assistant',
+        text: '我已生成任务计划，包含 3 个分项任务、需访问的系统范围与写入动作。已为您打开任务工作区，请在专属页面中确认并推进。',
+        actions: [{ id: 'enter-task', label: '进入任务工作区', primary: true }],
+      },
+    ],
+    [sentText]
+  )
+
+  const handleSend = () => {
+    if (!input.trim() || sent) return
+    setSentText(input.trim())
+    setSent(true)
+    setStoryState({ modelChoice })
+  }
+
+  const handleAction = (id: string) => {
+    setChosenAction(id)
+    if (id === 'enter-task') {
+      setStoryState({ stage: 1 })
+      navigate(`/task/${partyTaskId}`)
+    }
+  }
+
+  const handleReset = () => {
+    resetStoryState()
+    setStory({})
+    setSent(false)
+    setSentText('')
+    setInput(partyOpeningPrompt)
+    setModelChoice('auto')
+    setPermission('confirm')
+    setChips(partyContextChips)
+    setExpandedCat(null)
+    setChosenAction(undefined)
+  }
+
+  const handleQuickCard = (prompt: string) => {
+    setInput(prompt)
+    setSent(false)
+    inputRef.current?.focus()
+  }
+
+  const inProgress = (sent || story.stage != null) && !story.storyFinished
+  const activeStageIndex = story.stage != null ? Math.max(1, story.stage) : 1
+  const activeStage = partyTaskFlow.stages[activeStageIndex]
+  const progressPct = Math.round(((activeStageIndex + 1) / partyTaskFlow.stages.length) * 100)
+
+  const stepDone = [
+    sent || story.stage != null,
+    story.stage != null,
+    story.storyFinished || (story.stage != null && story.stage >= 4),
+    story.storyFinished,
+  ]
+  const activeStep = stepDone.findIndex((d) => !d)
+
+  const todos = story.storyFinished
+    ? [
+        { id: 'todo-new', type: '会议', typeBadge: 'danger' as const, title: '向会议纪要系统提交本次党组会纪要', due: '09-19', action: '' },
+        ...partyTodos.slice(0, 3),
+      ]
+    : partyTodos
+
+  const learnedMemories = story.storyFinished
+    ? [
+        { id: 'mrl-new', type: '程序记忆', title: '关键信息必须多系统交叉验证（用户口述）', time: '09-15' },
+        ...partyRecentLearnedMemories,
+      ]
+    : partyRecentLearnedMemories
+
   return (
     <div>
-      <div className="card mb-4" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <input
-          defaultValue="准备明天下午的重点任务专题调度会"
-          style={{
-            width: '100%',
-            padding: 'var(--space-3) var(--space-4)',
-            fontSize: 'var(--text-lg)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            outline: 'none',
-            color: 'var(--foreground)',
-            background: 'var(--card)',
-          }}
-        />
-        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-          {quickStarts.map(qs => (
-            <Link key={qs.label} to={qs.path} className="btn btn-secondary">{qs.label}</Link>
-          ))}
+      {/* ① Hero 区 */}
+      <div className="hero">
+        <div>
+          <div className="hero-kicker">
+            <span>你的政务工作智能体</span>
+            <span className="sep">·</span>
+            <span>2026年9月15日 · 政数局办公室 · 陈静</span>
+          </div>
+          <h1 className="hero-title">今天想推进什么工作？</h1>
+          <p className="hero-sub">
+            直接说目标，SuperAgent 会找回相关会议、规则、承诺和历史办理，再为你生成
+            <b>可确认的执行计划</b>。
+          </p>
         </div>
+        <button className="btn btn-secondary" style={{ fontSize: 'var(--text-sm)', flexShrink: 0 }} onClick={handleReset}>
+          重新演示
+        </button>
       </div>
 
-      <div className="grid grid-3 mb-4">
-        {alerts.map(alert => (
-          <Link
-            key={alert.title}
-            to={`/matter/${alert.matterId}`}
-            className="card"
-            style={{
-              borderLeft: `3px solid var(--${alert.type})`,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'var(--space-2)',
+      {story.storyFinished && (
+        <div className="card mb-4" style={{ borderTop: '3px solid var(--success)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+          <span className="badge badge-success">任务完成</span>
+          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--foreground)' }}>
+            局党组第13次会议会前准备已完成：3 份会前材料就绪，会议通知已发布（模拟）。新学习的记忆与纪要待办已同步至下方。
+          </span>
+        </div>
+      )}
+
+      {/* ② 输入卡 */}
+      <div className="card hero-card mb-4">
+        <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-end' }}>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSend()
+              }
             }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <span className={`badge badge-${alert.type}`}>{alert.type === 'danger' ? '紧急' : '提醒'}</span>
-              <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>{alert.title}</span>
-            </div>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', lineHeight: 1.6 }}>{alert.desc}</p>
-          </Link>
+            rows={2}
+            disabled={sent}
+            placeholder="描述你要办理的事项，例如：帮我准备下一次局内党组会的准备工作"
+            style={{
+              flex: 1,
+              padding: 'var(--space-3) var(--space-4)',
+              fontSize: 'var(--text-lg)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              outline: 'none',
+              color: 'var(--foreground)',
+              background: 'var(--card)',
+              resize: 'none',
+              lineHeight: 1.6,
+            }}
+          />
+          <button className="btn btn-primary" style={{ padding: 'var(--space-3) var(--space-5)' }} onClick={handleSend} disabled={sent}>
+            开始工作 →
+          </button>
+        </div>
+
+        <div className="hero-tags">
+          <button className="hero-tag" title="演示样例"><i>+</i> 上传材料</button>
+          <button className="hero-tag" title="演示样例"><i>+</i> 关联已有事项</button>
+          <button className="hero-tag" title="演示样例">选择记忆范围</button>
+          <button className="hero-tag" title="演示样例">选择输出形式</button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginTop: 'var(--space-2)', flexWrap: 'wrap' }}>
+          <InputConfig
+            modelChoice={modelChoice}
+            onModelChange={(v) => {
+              setModelChoice(v)
+              setStoryState({ modelChoice: v })
+            }}
+            permission={permission}
+            onPermissionChange={setPermission}
+          />
+          <span style={{ flex: 1 }} />
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            {chips.map((chip) => (
+              <span key={chip.id} className="context-chip">
+                {chip.label}
+                <button
+                  className="context-chip-x"
+                  onClick={() => setChips(chips.filter((c) => c.id !== chip.id))}
+                  title="移除"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="divider" style={{ margin: 'var(--space-3) 0' }} />
+
+        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+          {partyPresetCategories.map((cat) => (
+            <button
+              key={cat.key}
+              className="btn btn-secondary"
+              style={{ fontSize: 'var(--text-sm)', padding: 'var(--space-2) var(--space-4)' }}
+              onClick={() => setExpandedCat(expandedCat === cat.key ? null : cat.key)}
+            >
+              <span style={{ marginRight: 'var(--space-1)' }}>{cat.icon}</span>
+              {cat.label}
+            </button>
+          ))}
+        </div>
+        {expandedCat && (
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)', flexWrap: 'wrap' }}>
+            {partyPresetCategories
+              .find((c) => c.key === expandedCat)
+              ?.scenarios.map((sc) => (
+                <button
+                  key={sc.label}
+                  className="scenario-chip"
+                  onClick={() => {
+                    setInput(sc.prompt)
+                    setSent(false)
+                  }}
+                >
+                  {sc.label}
+                </button>
+              ))}
+          </div>
+        )}
+
+        {sent && (
+          <>
+            <div className="divider" style={{ margin: 'var(--space-3) 0' }} />
+            <ChatFlow script={script} autoStart onAction={handleAction} chosenId={chosenAction} maxHeight={280} />
+          </>
+        )}
+      </div>
+
+      {/* ③ 四步流程指示器 */}
+      <div className="steps-flow">
+        {heroSteps.map((s, i) => (
+          <div key={s.label} className={`step-item ${stepDone[i] ? 'done' : ''} ${activeStep === i ? 'active' : ''}`}>
+            <span className="step-dot">{stepDone[i] ? '✓' : i + 1}</span>
+            <span className="step-label">{s.label}</span>
+          </div>
         ))}
       </div>
 
-      <div className="card mb-4">
-        <div className="card-title">进行中的事项</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          {matters.map(matter => {
-            const st = matterStatusMap[matter.status] || matterStatusMap.active
-            return (
-              <Link
-                key={matter.id}
-                to={`/matter/${matter.id}`}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 'var(--space-2)',
-                  padding: 'var(--space-3) var(--space-4)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  transition: 'border-color 0.15s',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                    <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>{matter.title}</span>
-                    <span className="tag">{matter.type}</span>
-                    <span className={`badge ${st.badge}`}>{st.label}</span>
-                  </div>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>更新于 {matter.updatedAt}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                  <div style={{ flex: 1, height: '6px', background: 'var(--muted)', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ width: `${matter.progress}%`, height: '100%', background: 'var(--primary)', borderRadius: '3px' }} />
-                  </div>
-                  <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--primary)', minWidth: '36px' }}>{matter.progress}%</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)' }}>
-                  <span>参与：{matter.participants.join('、')}</span>
-                  {matter.pendingConfirmations > 0 && (
-                    <span style={{ color: 'var(--warning)' }}>待确认 {matter.pendingConfirmations} 项</span>
-                  )}
-                  <span>截止 {matter.dueDate}</span>
-                </div>
-              </Link>
-            )
-          })}
-        </div>
+      {/* ④ 快捷功能卡 */}
+      <div className="quick-grid">
+        {quickCards.map((c) => (
+          <button key={c.title} className="quick-card" onClick={() => handleQuickCard(c.prompt)}>
+            <span className="quick-card-icon" style={{ background: c.bg, color: c.color }}>{c.icon}</span>
+            <span>
+              <span className="quick-card-title">{c.title}</span>
+              <div className="quick-card-sub">{c.sub}</div>
+            </span>
+          </button>
+        ))}
       </div>
 
-      <div className="grid grid-2">
+      {/* ⑤ 双栏：继续最近的工作 / 需要你处理 */}
+      <div className="grid grid-2 mb-4" style={{ alignItems: 'start' }}>
         <div className="card">
-          <div className="card-title">等我确认</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            {pendingConfirms.map(item => (
-              <Link
-                key={item.title}
-                to={`/matter/${item.matterId}`}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+            <h2 className="card-title" style={{ marginBottom: 0 }}>继续最近的工作</h2>
+            {inProgress && <span className="badge badge-info">进行中</span>}
+            <span style={{ flex: 1 }} />
+            <Link to="/matters" className="card-head-link">全部事项 →</Link>
+          </div>
+          <div className="divider" style={{ margin: 'var(--space-3) 0' }} />
+          {inProgress ? (
+            <div style={{ padding: 'var(--space-3)', border: '1px solid rgba(111, 150, 255, 0.5)', borderRadius: 'var(--radius-md)', background: 'var(--ui-brand-soft)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>{partyTaskFlow.title}</span>
+                <span style={{ fontSize: 'var(--text-xs)', fontFamily: 'var(--font-code)', color: 'var(--muted-foreground)' }}>{partyTaskFlow.taskId}</span>
+              </div>
+              <div style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', margin: 'var(--space-2) 0' }}>
+                当前环节：<b style={{ color: 'var(--primary)' }}>{activeStage.label}</b>（第 {activeStageIndex + 1} 步 / 共 {partyTaskFlow.stages.length} 步）
+              </div>
+              <div className="work-progress"><i style={{ width: `${progressPct}%` }} /></div>
+              <button
+                className="btn btn-primary"
+                style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-3)', width: '100%' }}
+                onClick={() => navigate(activeStage.path(partyTaskFlow.taskId))}
+              >
+                回到任务
+              </button>
+            </div>
+          ) : story.storyFinished ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3)', border: '1px solid var(--success)', borderRadius: 'var(--radius-md)', background: 'var(--success-soft)' }}>
+              <span className="exec-check">✓</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--foreground)' }}>{partyTaskFlow.title}</div>
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>已完成 · 3 份材料 + 1 份通知 · 4 条新记忆</div>
+              </div>
+              <span className="badge badge-success">已闭环</span>
+            </div>
+          ) : (
+            <div style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', lineHeight: 1.6, padding: 'var(--space-2) 0' }}>
+              暂无进行中的任务。在上方输入目标，或点击快捷卡开始。
+            </div>
+          )}
+          <div className="divider" style={{ margin: 'var(--space-3) 0' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            {partyDoneMatters.map((m) => (
+              <div
+                key={m.id}
                 style={{
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: 'var(--space-1)',
-                  padding: 'var(--space-3)',
+                  alignItems: 'center',
+                  gap: 'var(--space-2)',
+                  padding: 'var(--space-2) var(--space-3)',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--text-sm)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                  <span className="badge badge-warning">待确认</span>
-                  <span style={{ fontSize: 'var(--text-md)', fontWeight: 500, color: 'var(--foreground)' }}>{item.title}</span>
+                <span className="exec-check">✓</span>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ color: 'var(--foreground)' }}>{m.title}</span>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>关联材料：{m.material}</span>
                 </div>
-                <p style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)' }}>{item.desc}</p>
-              </Link>
+                <span style={{ color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>{m.completedAt} 完成</span>
+              </div>
             ))}
           </div>
         </div>
 
         <div className="card">
-          <div className="card-title">AI最近学会了什么</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            {experiences.map(exp => {
-              const isSkill = exp.pattern.includes('会议决议')
-              const title = isSkill ? `会议决议转督办Skill ${exp.version}` : `轻量模型分段抽取${exp.version}`
-              return (
-                <div
-                  key={exp.id}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 'var(--space-1)',
-                    padding: 'var(--space-3)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                    <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--primary)' }}>{title}</span>
-                    <span className={`badge ${exp.status === '已发布' ? 'badge-success' : 'badge-info'}`}>{exp.status}</span>
-                  </div>
-                  <p style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)' }}>{exp.improvements}</p>
-                  <div style={{ display: 'flex', gap: 'var(--space-4)', fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>
-                    <span>样本 {exp.samples} 次</span>
-                    <span>失败 {exp.failures} 次</span>
-                    <span>置信度 {(exp.confidence * 100).toFixed(0)}%</span>
-                  </div>
-                </div>
-              )
-            })}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+            <h2 className="card-title" style={{ marginBottom: 0 }}>需要你处理</h2>
+            <span className="badge badge-warning">{todos.length} 条 · 含待确认</span>
+            <span style={{ flex: 1 }} />
+            <Link to="/todos" className="card-head-link">全部待确认 →</Link>
           </div>
-        </div>
-      </div>
-
-      <div className="card mt-4">
-        <div className="card-title">工作记忆概览</div>
-        <div className="grid grid-3">
-          {memoryTypes.map(mt => (
-            <div
-              key={mt.type}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-1)',
-                padding: 'var(--space-3)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>{mt.type}</span>
-                <span className="badge badge-muted">{mt.count} 条</span>
-              </div>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>{mt.userLabel}</span>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>{mt.example}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const confirmQueue = [
-  {
-    id: 'CF-001',
-    type: '口径冲突',
-    level: 'danger',
-    levelLabel: '紧急 · 今日截止',
-    title: '项目数据口径冲突确认',
-    desc: '会议纪要记载85%，项目系统审核数据72%，需确认以哪个口径为准，并通知住建局',
-    matter: '重点任务专题调度会',
-    matterId: 'MATTER-2026-0912',
-    source: '9月10日第三次调度会 · 会议记录 00:52:00',
-  },
-  {
-    id: 'CF-002',
-    type: '要素不全',
-    level: 'warning',
-    levelLabel: '等待中',
-    title: '试点延期审批提交',
-    desc: '责任人未明确、期限未明确，AI已标记模糊要素，需指定责任人并确认截止时间后提交',
-    matter: '重点任务专题调度会',
-    matterId: 'MATTER-2026-0912',
-    source: 'AI完整性检查 · 2026-09-14 09:30',
-  },
-  {
-    id: 'CF-003',
-    type: '方案确认',
-    level: 'warning',
-    levelLabel: '等待中',
-    title: '一件事联调方案确认',
-    desc: '政数局提交跨部门联调方案，涉及人社局、住建局协同时间表，距9月25日上线还有11天',
-    matter: '重点任务专题调度会',
-    matterId: 'MATTER-2026-0912',
-    source: '联调方案草案 · 2026-09-12',
-  },
-  {
-    id: 'CF-004',
-    type: '催办确认',
-    level: 'warning',
-    levelLabel: '明日17:00截止',
-    title: '督查报送缺2部门反馈',
-    desc: '省级专项督查报送5/7部门已回复，剩余2个部门未回复，AI建议以督办函形式催办',
-    matter: '省级专项督查报送',
-    matterId: 'MATTER-2026-0820',
-    source: '督查报送Agent · 2026-09-14 08:00',
-  },
-  {
-    id: 'CF-005',
-    type: '写入审批',
-    level: 'info',
-    levelLabel: '已预览待确认',
-    title: '督办系统写入确认',
-    desc: 'AI拟在督办系统创建6项子任务并写入OA会议纪要，写入内容已生成预览，等待人工确认',
-    matter: '重点任务专题调度会',
-    matterId: 'MATTER-2026-0912',
-    source: 'TASK-20260910-0086 · 写回预览',
-  },
-]
-
-function PendingView() {
-  const stats = [
-    { label: '待确认总数', value: '5 项', hint: '较昨日 +2' },
-    { label: '紧急事项', value: '1 项', hint: '今日截止' },
-    { label: '即将超时', value: '1 项', hint: '明日17:00' },
-    { label: '已确认(本周)', value: '12 项', hint: '平均确认用时 6 分钟' },
-  ]
-  return (
-    <div>
-      <div className="grid grid-4 mb-4">
-        {stats.map(s => (
-          <div key={s.label} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)' }}>{s.label}</span>
-            <span style={{ fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--foreground)' }}>{s.value}</span>
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>{s.hint}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="card">
-        <div className="card-title">确认队列</div>
-        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', marginBottom: 'var(--space-3)' }}>
-          AI不代替你做确认。所有高风险动作（写入、提交、对外发送）在执行前都会进入此队列等待人工确认，确认记录自动写入组织记忆。
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          {confirmQueue.map(item => (
-            <div
-              key={item.id}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-2)',
-                padding: 'var(--space-4)',
-                border: '1px solid var(--border)',
-                borderLeft: `3px solid var(--${item.level})`,
-                borderRadius: 'var(--radius-md)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-                <span className={`badge badge-${item.level}`}>{item.levelLabel}</span>
-                <span className="tag">{item.type}</span>
-                <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>{item.title}</span>
-              </div>
-              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', lineHeight: 1.6 }}>{item.desc}</p>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>
-                    来源：{item.source} · 所属事项：
-                    <Link to={`/matter/${item.matterId}`} style={{ color: 'var(--primary)' }}>{item.matter}</Link>
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                  {item.id === 'CF-001' && (
-                    <Link to="/resolution-confirm" className="btn btn-primary">去确认</Link>
-                  )}
-                  {item.id === 'CF-005' && (
-                    <Link to="/ai-execution" className="btn btn-primary">查看预览</Link>
-                  )}
-                  <Link to={`/matter/${item.matterId}`} className="btn btn-secondary">查看事项</Link>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function MemoryView() {
-  return (
-    <div>
-      <div className="card mb-4">
-        <div className="card-title">六类工作记忆</div>
-        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', lineHeight: 1.6 }}>
-          AI在办理事项的过程中积累的六类记忆，全部内容可查、来源可追溯。记忆按事项归集，在事项中按需出现；
-          跨事项复用需明确授权，删除随时生效。以下为演示样例数据。
-        </p>
-        <div className="grid grid-2 mt-4">
-          {memoryTypes.map(mt => (
-            <div
-              key={mt.type}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-2)',
-                padding: 'var(--space-4)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                  <span style={{ fontSize: 'var(--text-md)', fontWeight: 700, color: 'var(--foreground)' }}>{mt.type}</span>
-                  <span className="tag">{mt.userLabel}</span>
-                </div>
-                <span className="badge badge-muted">{mt.count} 条</span>
-              </div>
-              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>关注点：{mt.example}</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-                {mt.items.map(item => (
-                  <div
-                    key={item}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--space-2)',
-                      padding: 'var(--space-2) var(--space-3)',
-                      background: 'var(--muted)',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: 'var(--text-sm)',
-                      color: 'var(--foreground)',
-                    }}
-                  >
-                    <span style={{ color: 'var(--primary)', fontSize: 'var(--text-xs)' }}>●</span>
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-title">记忆使用规则</div>
-        <div className="grid grid-3">
-          {[
-            { title: '来源可追溯', desc: '每条记忆记录来源事项、会议和系统，可回查原始证据' },
-            { title: '按事项归集', desc: '记忆服务于事项办理，在对应事项中按需出现，不做全局广播' },
-            { title: '跨事项复用需授权', desc: '将A事项记忆用于B事项时，明确提示并需人工授权' },
-            { title: '删除随时生效', desc: '删除记忆立即生效，正在进行的任务同步失效该条记忆' },
-            { title: '敏感数据不出域', desc: '涉密和敏感数据不进入个人记忆，仅在受控会话内使用' },
-            { title: '记忆与权限一致', desc: '组织记忆随权限变化更新，权限回收后相关记忆不可见' },
-          ].map(rule => (
-            <div
-              key={rule.title}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-1)',
-                padding: 'var(--space-3)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-              }}
-            >
-              <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--primary)' }}>{rule.title}</span>
-              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', lineHeight: 1.6 }}>{rule.desc}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function AbilityView() {
-  const agentMap = new Map<string, { task: string; matter: string; matterId: string; status: string; priority: string }>()
-  tasks.forEach(t => {
-    if (t.assignee.includes('Agent')) {
-      const [name] = t.assignee.split('@')
-      if (!agentMap.has(name)) {
-        const matter = matters.find(m => m.id === t.matterId)
-        agentMap.set(name, {
-          task: t.title,
-          matter: matter?.title || t.matterId,
-          matterId: t.matterId,
-          status: t.status,
-          priority: t.priority,
-        })
-      }
-    }
-  })
-  const agents = Array.from(agentMap.entries()).map(([name, info]) => ({ name, ...info }))
-
-  const agentAbilityMap: Record<string, string> = {
-    '会议督办Agent': '核验会议决议、生成督办建议、跟踪任务执行',
-    '政务服务Agent': '一件事联调测试、跨部门流程验证',
-    '系统改造Agent': '老系统MCP接口测试、AI能力接入验证',
-    '督查报送Agent': '收集部门反馈、催办提醒、汇总报送',
-  }
-
-  return (
-    <div>
-      <div className="card mb-4">
-        <div className="card-title">在用智能体</div>
-        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', marginBottom: 'var(--space-3)' }}>
-          专业能力不作为菜单入口，而是在事项办理中按需调用。每个Agent的执行过程、数据来源和管控点全程可查。
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          {agents.map(agent => (
-            <div
-              key={agent.name}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-2)',
-                padding: 'var(--space-4)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                  <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>{agent.name}</span>
-                  <span className={`badge ${agent.status === 'in_progress' ? 'badge-info' : 'badge-success'}`}>
-                    {agent.status === 'in_progress' ? '执行中' : '已完成'}
-                  </span>
-                  <span className="tag">{agent.priority}优先</span>
-                </div>
-                <Link to={`/matter/${agent.matterId}`} style={{ fontSize: 'var(--text-xs)', color: 'var(--primary)' }}>
-                  所属事项：{agent.matter} →
-                </Link>
-              </div>
-              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)' }}>
-                {agentAbilityMap[agent.name] || '事项办理辅助'}
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>
-                <span>当前任务：{agent.task}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-title">在用Skill与工作流</div>
-        <div className="grid grid-2">
-          {experiences.map(exp => {
-            const isSkill = exp.pattern.includes('会议决议')
-            const title = isSkill ? `会议决议转督办任务 ${exp.version}` : `会议督办工作流 · 轻量分段抽取 ${exp.version}`
-            return (
+          <div className="divider" style={{ margin: 'var(--space-3) 0' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            {todos.map((todo) => (
               <div
-                key={exp.id}
+                key={todo.id}
                 style={{
                   display: 'flex',
-                  flexDirection: 'column',
+                  alignItems: 'center',
                   gap: 'var(--space-2)',
-                  padding: 'var(--space-4)',
+                  padding: 'var(--space-2) var(--space-3)',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--text-sm)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                  <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--primary)' }}>{title}</span>
-                  <span className={`badge ${exp.status === '已发布' ? 'badge-success' : 'badge-info'}`}>{exp.status}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', flexWrap: 'wrap', fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>
-                  {exp.sequence.map((step, i) => (
-                    <span key={step} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
-                      {i > 0 && <span style={{ color: 'var(--muted-foreground)' }}>→</span>}
-                      <span className="tag">{step}</span>
-                    </span>
-                  ))}
-                </div>
-                <p style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', lineHeight: 1.6 }}>
-                  触发条件：{exp.trigger}。{exp.improvements}
-                </p>
-                <div style={{ display: 'flex', gap: 'var(--space-4)', fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>
-                  <span>样本 {exp.samples} 次</span>
-                  <span>失败 {exp.failures} 次</span>
-                  <span>置信度 {(exp.confidence * 100).toFixed(0)}%</span>
-                </div>
+                <span className="prio-dot" style={{ background: prioColors[todo.typeBadge] || 'var(--muted-foreground)' }} />
+                <span className={`badge badge-${todo.typeBadge}`}>{todo.type}</span>
+                <span style={{ flex: 1, color: 'var(--foreground)' }}>{todo.title}</span>
+                <span style={{ color: todo.due.includes('今日') ? 'var(--danger)' : 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>
+                  {todo.due}
+                </span>
               </div>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SystemView() {
-  return (
-    <div>
-      <div className="card mb-4">
-        <div className="card-title">已连接系统</div>
-        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', marginBottom: 'var(--space-3)' }}>
-          通过MCP协议连接的政务系统。A类核心系统直连，只读工具默认开放，写入工具一律需人工确认。
-        </p>
-        <div className="grid grid-3">
-          {sdkApps.map(app => (
-            <div
-              key={app.name}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-2)',
-                padding: 'var(--space-4)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>{app.name}</span>
-                <span className={`badge ${app.status === '活跃' ? 'badge-success' : 'badge-info'}`}>{app.status}</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>
-                <span>单位：{app.unit}</span>
-                <span>环境：{app.env} · SDK {app.sdk}</span>
-                <span>会话 {app.sessions} · 调用 {app.calls} 次</span>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="card mb-4">
-        <div className="card-title">MCP工具清单</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-          {mcpTools.map(tool => (
-            <div
-              key={tool.name}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 'var(--space-3)',
-                padding: 'var(--space-3) var(--space-4)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                flexWrap: 'wrap',
-              }}
-            >
-              <span style={{ fontFamily: 'monospace', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--primary)', minWidth: '180px' }}>{tool.name}</span>
-              <span className="tag">{tool.system}</span>
-              <span className={`badge ${tool.type === '只读' ? 'badge-muted' : 'badge-warning'}`}>{tool.type}</span>
-              <span className="badge badge-info">风险{tool.risk}</span>
-              <span className="badge badge-muted">{tool.status}</span>
-              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', flex: 1, minWidth: '200px' }}>{tool.description}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
+      {/* ⑥ 记忆区域 */}
       <div className="card">
-        <div className="card-title">连接权限说明</div>
-        <div className="grid grid-3">
-          {[
-            { title: '只读默认开放', desc: '查询类工具经安全评审后默认可用，敏感字段自动脱敏' },
-            { title: '写入需人工确认', desc: '所有写入操作生成预览并等待确认，确认记录留痕' },
-            { title: '权限随人随岗', desc: '工具权限与经办人岗位绑定，调岗自动回收' },
-          ].map(rule => (
-            <div
-              key={rule.title}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-1)',
-                padding: 'var(--space-3)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-              }}
-            >
-              <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--primary)' }}>{rule.title}</span>
-              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', lineHeight: 1.6 }}>{rule.desc}</span>
-            </div>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <h2 className="card-title" style={{ marginBottom: 0 }}>工作记忆</h2>
+          <span className="badge badge-muted">内容可查 · 来源可追溯</span>
         </div>
+        <div className="divider" style={{ margin: 'var(--space-3) 0' }} />
+        <div className="grid grid-2">
+          <div>
+            <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--muted-foreground)', marginBottom: 'var(--space-2)' }}>
+              最近使用的记忆
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              {partyRecentUsedMemories.map((m) => (
+                <MemoryRow key={m.id} mem={m} />
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--muted-foreground)', marginBottom: 'var(--space-2)' }}>
+              最近新学的记忆
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              {learnedMemories.length === 0 ? (
+                <span style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)' }}>暂无新记忆</span>
+              ) : (
+                learnedMemories.map((m) => <MemoryRow key={m.id} mem={m} highlight />)
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ⑦ AI Memory 常驻状态条 */}
+      <div className="memory-strip">
+        <span className="ms-badge"><i />AI Memory</span>
+        <span>正在持续观察你的工作：识别重点待办、整理做了什么、下一步该做什么。</span>
+        <span style={{ flex: 1 }} />
+        <Link to="/memory" className="card-head-link">查看记忆中心 →</Link>
       </div>
     </div>
   )
 }
 
-const tabViewMap: Record<string, () => JSX.Element> = {
-  pending: PendingView,
-  memory: MemoryView,
-  ability: AbilityView,
-  system: SystemView,
-}
-
-const tabHeaderMap: Record<string, { title: string; subtitle: string }> = {
-  pending: { title: '等我确认', subtitle: '高风险动作执行前的人工确认队列 · AI不代替你做确认' },
-  memory: { title: '工作记忆', subtitle: '六类工作记忆 · 内容可查 · 来源可追溯 · 删除随时生效' },
-  ability: { title: '专业能力', subtitle: '在用智能体与Skill · 在事项中按需调用 · 过程全程可查' },
-  system: { title: '系统连接', subtitle: 'MCP连接的政务系统 · 只读默认开放 · 写入需人工确认' },
-}
-
-export default function Workbench() {
-  const location = useLocation()
-  const tab = new URLSearchParams(location.search).get('tab') || ''
-  const View = tabViewMap[tab]
-  const header = tabHeaderMap[tab]
-
-  if (View && header) {
-    return (
-      <div>
-        <div className="page-header">
-          <h1 className="page-title">{header.title}</h1>
-          <p className="page-subtitle">{header.subtitle} · 演示样例</p>
-        </div>
-        <View />
-      </div>
-    )
-  }
-
+function MemoryRow({ mem, highlight }: { mem: { id: string; type: string; title: string; time: string }; highlight?: boolean }) {
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">政务事项工作台</h1>
-        <p className="page-subtitle">2026年9月14日 · 政数局 · 李明</p>
-      </div>
-      <TodayView />
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--space-2)',
+        padding: 'var(--space-2) var(--space-3)',
+        border: `1px solid ${highlight ? 'var(--success)' : 'var(--border)'}`,
+        borderRadius: 'var(--radius-md)',
+        background: highlight ? 'var(--success-soft)' : 'var(--card)',
+        fontSize: 'var(--text-sm)',
+      }}
+    >
+      <span className="badge badge-info">{mem.type}</span>
+      <span style={{ flex: 1, color: 'var(--foreground)', lineHeight: 1.5 }}>{mem.title}</span>
+      <span style={{ color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>{mem.time}</span>
     </div>
   )
 }

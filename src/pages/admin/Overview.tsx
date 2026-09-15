@@ -1,251 +1,308 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { tokenUsage, riskEvents } from '../../data/fixtures'
+import {
+  adminKpis,
+  adminFunnel,
+  adminDangerList,
+  adminTokenWaterfall,
+  adminMemoryEvolution,
+  sandboxStatus,
+  sandboxInstances,
+} from '../../data/fixtures-admin'
 
-const metrics = [
-  {
-    question: '谁在用AI办什么',
-    icon: '◐',
-    value: '1,260名用户 · 510项事项 · 12个部门',
-    items: [
-      { label: '活跃用户', value: '1,260', tone: 'info' as const },
-      { label: '在办事项', value: '510', tone: 'info' as const },
-      { label: '覆盖部门', value: '12', tone: 'info' as const },
-    ],
-  },
-  {
-    question: '危险AI行为',
-    icon: '⚑',
-    value: '4个应用 · 20次阻断 · 3项处置中',
-    items: [
-      { label: '危险应用', value: '4', tone: 'danger' as const },
-      { label: '累计阻断', value: '20', tone: 'danger' as const },
-      { label: '处置中', value: '3', tone: 'danger' as const },
-    ],
-  },
-  {
-    question: '疑似违规推导',
-    icon: '⚠',
-    value: '5次 · 4次阻断 · 1次待确认',
-    items: [
-      { label: '触发次数', value: '5', tone: 'danger' as const },
-      { label: '已阻断', value: '4', tone: 'danger' as const },
-      { label: '待确认', value: '1', tone: 'danger' as const },
-    ],
-  },
-  {
-    question: '动作被阻断/降级/转人工',
-    icon: '⊘',
-    value: '15次阻断 · 8次降级 · 12次转人工',
-    items: [
-      { label: '阻断', value: '15', tone: 'danger' as const },
-      { label: '降级', value: '8', tone: 'warning' as const },
-      { label: '转人工', value: '12', tone: 'warning' as const },
-    ],
-  },
-  {
-    question: 'Token和算力',
-    icon: '₮',
-    value: '41.2M / 50M · 部门TOP3 · 节省3.3M',
-    items: [
-      { label: '已用Token', value: '41.2M', tone: 'info' as const },
-      { label: '预算上限', value: '50M', tone: 'info' as const },
-      { label: '节省Token', value: '3.3M', tone: 'success' as const },
-    ],
-  },
-  {
-    question: 'AI学会了什么',
-    icon: '↗',
-    value: '2个Skill · 1个试运行 · 0个待审批',
-    items: [
-      { label: '已发布Skill', value: '2', tone: 'success' as const },
-      { label: '试运行', value: '1', tone: 'warning' as const },
-      { label: '待审批', value: '0', tone: 'info' as const },
-    ],
-  },
-]
-
-const departmentMatters = [
-  { name: '政数局', count: 42, percent: 100 },
-  { name: '人社局', count: 18, percent: 43 },
-  { name: '住建局', count: 12, percent: 29 },
-  { name: '发改委', count: 8, percent: 19 },
-  { name: '其他部门', count: 30, percent: 71 },
-]
-
-const recentEvents = [
-  { time: '09:45', matter: '重点任务专题调度会', agent: '会议督办Agent@2.1', action: '读取项目台账进度', status: '正常' },
-  { time: '09:42', matter: '老系统AI改造试点', agent: '系统改造Agent@1.2', action: 'MCP接口调用query_project', status: '正常' },
-  { time: '09:38', matter: '重点任务专题调度会', agent: '会议督办Agent@2.1', action: '检测到口径冲突(85% vs 72%)', status: '预警' },
-  { time: '09:35', matter: '一件事上线联调', agent: '政务服务Agent@1.5', action: '跨部门数据组合推导', status: '阻断' },
-  { time: '09:30', matter: '省级专项督查报送', agent: '督查报送Agent@1.0', action: '收集5/7部门反馈', status: '正常' },
-  { time: '09:25', matter: '重点任务专题调度会', agent: '会议督办Agent@2.1', action: '生成6项督办任务清单', status: '正常' },
-  { time: '09:20', matter: '老系统AI改造试点', agent: '系统改造Agent@1.2', action: '批量导出被阻断', status: '阻断' },
-  { time: '09:15', matter: '重点任务专题调度会', agent: '会议督办Agent@2.1', action: '历史纪要分段抽取', status: '正常' },
-]
-
-function statusBadge(status: string) {
-  if (status === '正常') return <span className="badge badge-success">正常</span>
-  if (status === '预警') return <span className="badge badge-warning">预警</span>
-  if (status === '阻断') return <span className="badge badge-danger">阻断</span>
-  return <span className="badge badge-muted">{status}</span>
+function Ring({ value, label, color = 'var(--ad-cyan)', trackColor = 'rgba(138,163,199,0.15)' }: { value: number; label: string; color?: string; trackColor?: string }) {
+  const r = 44
+  const c = 2 * Math.PI * r
+  const off = c * (1 - value / 100)
+  return (
+    <div className="ad-ring">
+      <svg width="120" height="120" style={{ position: 'absolute', inset: 0, transform: 'rotate(-90deg)' }}>
+        <circle cx="60" cy="60" r={r} fill="none" stroke={trackColor} strokeWidth="9" />
+        <circle cx="60" cy="60" r={r} fill="none" stroke={color} strokeWidth="9" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} style={{ filter: `drop-shadow(0 0 6px ${color})` }} />
+      </svg>
+      <div className="ad-ring-inner">
+        <div className="ad-ring-value">{value}%</div>
+        <div className="ad-ring-label">{label}</div>
+      </div>
+    </div>
+  )
 }
 
-function toneClass(tone: string) {
-  if (tone === 'success') return 'badge-success'
-  if (tone === 'warning') return 'badge-warning'
-  if (tone === 'danger') return 'badge-danger'
-  if (tone === 'info') return 'badge-info'
-  return 'badge-muted'
+const sbToneMap: Record<string, string> = { run: 'run', idle: 'idle', err: 'err', iso: 'iso' }
+const sbStatusBadge: Record<string, string> = {
+  运行中: 'ad-badge-cyan',
+  闲置: 'ad-badge-muted',
+  异常: 'ad-badge-amber',
+  已隔离: 'ad-badge-red',
 }
 
-export default function Overview() {
-  const cityBudgetM = (tokenUsage.cityBudget / 1000000).toFixed(0)
-  const cityUsedM = (tokenUsage.cityUsed / 1000000).toFixed(1)
-  const usagePercent = ((tokenUsage.cityUsed / tokenUsage.cityBudget) * 100).toFixed(1)
+export default function AdminOverview() {
+  const [sbFilter, setSbFilter] = useState<string | null>(null)
+
+  const maxScene = Math.max(...adminFunnel.scenes.map((s) => s.value))
+  const wfMax = adminTokenWaterfall.baseline
+  const filteredInstances = sbFilter
+    ? sandboxInstances.filter((i) => i.status === sandboxStatus.counts.find((c) => c.key === sbFilter)?.label)
+    : sandboxInstances
+
+  const tlPoints = adminMemoryEvolution.evolutionPoints
+  const tlPath = tlPoints
+    .map((p, i) => {
+      const x = 16 + (i / (tlPoints.length - 1)) * 268
+      const y = 70 - ((p.rate - 44) / 24) * 56
+      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
 
   return (
-    <div>
-      <div className="page-header">
-        <div className="page-title">全市AI运行与进化总览<span className="demo-label">演示样例</span></div>
-        <div className="page-subtitle">回答领导关心的六个问题：谁在用AI办什么 · 危险AI行为 · 疑似违规推导 · 动作管控 · Token与算力 · AI学会了什么</div>
+    <div className="ad-page">
+      <div className="ad-header">
+        <div>
+          <div className="ad-header-title">全市 AI 运行与进化中枢</div>
+          <div className="ad-header-sub">运行、风险、成本、进化一屏掌握</div>
+        </div>
+        <div className="ad-env">
+          <span className="ad-env-badge"><i />测试环境 · 合成数据</span>
+          <span className="ad-env-time">2026-09-15 10:36:25</span>
+        </div>
       </div>
 
-      <div className="grid grid-3" style={{ marginBottom: 'var(--space-5)' }}>
-        {metrics.map((m) => (
-          <div key={m.question} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <span style={{ fontSize: 'var(--text-xl)', color: 'var(--primary)' }}>{m.icon}</span>
-              <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>{m.question}</span>
+      {/* KPI 四卡 */}
+      <div className="ad-kpi-grid">
+        {adminKpis.map((k) => (
+          <div className="ad-card ad-kpi" key={k.key}>
+            <div className={`ad-kpi-icon ${k.tone}`}>{k.icon}</div>
+            <div style={{ minWidth: 0 }}>
+              <div className="ad-kpi-label">{k.label}</div>
+              <div className="ad-kpi-value">{k.value}</div>
+              <div className="ad-kpi-subs">
+                {k.subs.map((s) => (
+                  <span key={s.text} className={`ad-kpi-sub ${s.cls}`}>
+                    <b className="ad-num">{s.value}</b> {s.text}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-              {m.items.map((it) => (
-                <div key={it.label} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <span style={{ fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--foreground)' }}>{it.value}</span>
-                  <span className={`badge ${toneClass(it.tone)}`}>{it.label}</span>
-                </div>
-              ))}
-            </div>
-            <div style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)' }}>{m.value}</div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-2" style={{ marginBottom: 'var(--space-5)' }}>
-        <div className="card">
-          <div className="card-title">事项分布（部门维度）</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            {departmentMatters.map((d) => (
-              <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                <span style={{ width: '80px', fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', flexShrink: 0 }}>{d.name}</span>
-                <div style={{ flex: 1, height: '20px', background: 'var(--muted)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${d.percent}%`,
-                    height: '100%',
-                    background: 'var(--primary)',
-                    borderRadius: 'var(--radius-sm)',
-                    transition: 'width 0.3s',
-                  }} />
-                </div>
-                <span style={{ width: '40px', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--foreground)', textAlign: 'right' }}>{d.count}</span>
-              </div>
-            ))}
-          </div>
+      {/* 全市 AI 事项运行态势 */}
+      <div className="ad-card mb-4">
+        <div className="ad-card-title">
+          全市 AI 事项运行态势
+          <span className="sub">今日 · 全市 42 个部门</span>
+          <Link to="/admin/matters-agents" className="ad-drill">进入事项与智能体 →</Link>
         </div>
-
-        <div className="card">
-          <div className="card-title">Token分布（模型类型）</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-5)' }}>
-            <div style={{
-              width: '180px',
-              height: '180px',
-              borderRadius: '50%',
-              background: `conic-gradient(
-                var(--chart-1) 0% ${tokenUsage.models[0].percentage}%,
-                var(--chart-2) ${tokenUsage.models[0].percentage}% ${tokenUsage.models[0].percentage + tokenUsage.models[1].percentage}%,
-                var(--chart-3) ${tokenUsage.models[0].percentage + tokenUsage.models[1].percentage}% 100%
-              )`,
-              position: 'relative',
-              flexShrink: 0,
-            }}>
-              <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: '100px',
-                height: '100px',
-                borderRadius: '50%',
-                background: 'var(--card)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <span style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--foreground)' }}>{cityUsedM}M</span>
-                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>已用Token</span>
+        <div className="ad-flow">
+          {adminFunnel.stages.map((s, i) => {
+            const loss = i > 0 ? adminFunnel.stages[i - 1].count - s.count : 0
+            return (
+              <div className="ad-flow-node hot" key={s.label}>
+                <div className="ad-flow-count">{s.count.toLocaleString()}</div>
+                <div className="ad-flow-dot" />
+                <div className="ad-flow-label">{s.label}</div>
+                {i > 0 && <div className="ad-flow-loss">−{loss}</div>}
               </div>
+            )
+          })}
+        </div>
+        <div className="ad-grid-2" style={{ gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 'var(--space-5)' }}>
+          <div>
+            <div className="ad-alert" style={{ marginBottom: 'var(--space-4)' }}>
+              <span>⚠</span>
+              <span><b>24</b> 项触发治理 · <b>37</b> 待确认 · <b>8</b> 高风险</span>
+              <span style={{ flex: 1 }} />
+              <Link to="/admin/incidents" className="ad-drill" style={{ color: '#ffd08a' }}>进入事件处置 →</Link>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              {tokenUsage.models.map((m, i) => (
-                <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                  <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: `var(--chart-${i + 1})` }} />
-                  <span style={{ fontSize: 'var(--text-sm)', color: 'var(--foreground)' }}>{m.name}</span>
-                  <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--foreground)' }}>{m.percentage}%</span>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>({(m.tokens / 1000000).toFixed(1)}M)</span>
+            <div className="ad-bars">
+              {adminFunnel.scenes.map((s) => (
+                <div className="ad-bar-row" key={s.label}>
+                  <span className="ad-bar-label">{s.label}</span>
+                  <div className="ad-bar-track">
+                    <div className="ad-bar-fill" style={{ width: `${(s.value / maxScene) * 100}%` }} />
+                  </div>
+                  <span className="ad-bar-value">{s.value}</span>
                 </div>
               ))}
-              <div className="divider" style={{ margin: 'var(--space-1) 0' }} />
-              <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
-                <div>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>预算</span>
-                  <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}> {cityBudgetM}M</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <Ring value={adminFunnel.closureRate} label="已闭环" />
+            <div className="ad-metric-row" style={{ gap: 'var(--space-4)' }}>
+              {adminFunnel.closureSubs.map((s) => (
+                <div className="ad-metric" key={s.k}>
+                  <span className="k">{s.k}</span>
+                  <span className="v">{s.v}</span>
                 </div>
-                <div>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--muted-foreground)' }}>使用率</span>
-                  <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--warning)' }}> {usagePercent}%</span>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 'var(--space-5)' }}>
-        <div className="card-title">全市运行 · 最近事件</div>
-        <table>
-          <thead>
-            <tr>
-              <th style={{ width: '70px' }}>时间</th>
-              <th>事项</th>
-              <th>Agent</th>
-              <th>动作</th>
-              <th style={{ width: '80px' }}>状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentEvents.map((e, i) => (
-              <tr key={i}>
-                <td style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)' }}>{e.time}</td>
-                <td style={{ fontSize: 'var(--text-sm)' }}>{e.matter}</td>
-                <td style={{ fontSize: 'var(--text-sm)', color: 'var(--primary)' }}>{e.agent}</td>
-                <td style={{ fontSize: 'var(--text-sm)' }}>{e.action}</td>
-                <td>{statusBadge(e.status)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>深入查看单任务全链路</div>
-          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--muted-foreground)', marginTop: 'var(--space-1)' }}>
-            从任务发起到写回，查看完整的工具调用、Token消耗、审批记录和证据链
+      {/* 沙箱状态管理 */}
+      <div className="ad-card mb-4">
+        <div className="ad-card-title">
+          沙箱状态
+          <span className="sub">任务在独立沙箱内运行 · 成果保存在个人空间</span>
+          <button
+            className="ad-drill"
+            onClick={() => setSbFilter(null)}
+            style={{ color: sbFilter ? 'var(--ad-cyan)' : 'var(--ad-muted)', fontSize: 'var(--text-xs)' }}
+          >
+            全部环境 {sandboxStatus.total} 个
+          </button>
+        </div>
+        <div className="ad-sandbox-grid">
+          {sandboxStatus.counts.map((c) => (
+            <button
+              key={c.key}
+              className={`ad-sb-tile ${sbToneMap[c.key]} ${sbFilter === c.key ? 'active' : ''}`}
+              style={sbFilter === c.key ? { outline: '1px solid var(--ad-cyan)' } : undefined}
+              onClick={() => setSbFilter(sbFilter === c.key ? null : c.key)}
+            >
+              <div className="num">{c.value}</div>
+              <div className="lbl">沙箱 · {c.label}</div>
+            </button>
+          ))}
+        </div>
+        <div className="ad-sb-note">{sandboxStatus.note}</div>
+        <div className="ad-sb-pools">
+          {sandboxStatus.pools.map((p) => (
+            <span className="ad-sb-pool" key={p.label} title={p.detail}>
+              <i style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ad-blue)', display: 'inline-block' }} />
+              {p.label}
+            </span>
+          ))}
+        </div>
+        <div className="ad-sb-list">
+          {filteredInstances.map((ins) => (
+            <div className="ad-sb-row" key={ins.id}>
+              <span className="ad-sb-id">{ins.id}</span>
+              <span className="ad-sb-name">{ins.name}</span>
+              <span className={`ad-badge ${sbStatusBadge[ins.status]}`}>{ins.status}</span>
+              <span className="ad-sb-meta ad-num">{ins.task}</span>
+              <span className="ad-sb-meta">{ins.network}</span>
+              <span className="ad-sb-meta">{ins.template.split(' / ')[0]} · {ins.cpu} / {ins.memory}</span>
+            </div>
+          ))}
+          <div className="ad-sb-note" style={{ marginTop: 'var(--space-2)' }}>
+            共 {sandboxStatus.total} 个环境 · 上方展示运行样例 {sandboxInstances.length} 条，点击状态格可筛选
           </div>
         </div>
-        <Link to="/admin/task/TASK-20260910-0086" className="btn btn-primary">
-          查看单任务全链路 →
-        </Link>
+      </div>
+
+      {/* 危险 AI 行为 */}
+      <div className="ad-grid-2 mb-4" style={{ gridTemplateColumns: '300px 1fr' }}>
+        <div className="ad-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-3)' }}>
+          <div className="ad-card-title" style={{ alignSelf: 'stretch' }}>危险 AI 行为</div>
+          <Ring value={8} label="高风险" color="var(--ad-red)" />
+          <span className="ad-badge ad-badge-green">风险均已进入处置链路</span>
+        </div>
+        <div className="ad-card">
+          <div className="ad-card-title">
+            高风险行为列表
+            <span className="sub">今日 · 5 条</span>
+          </div>
+          <div className="ad-risk-list">
+            {adminDangerList.map((r) => (
+              <div className="ad-risk-item" key={r.no}>
+                <span className="ad-risk-no">{r.no}</span>
+                <span className="ad-risk-title">{r.title}</span>
+                <span className="ad-risk-meta">{r.meta}</span>
+                {r.state === 'blocked' && <span className="ad-badge ad-badge-red">已阻断</span>}
+                {r.state === 'review' && <span className="ad-badge ad-badge-amber">人工复核</span>}
+                {r.state === 'allowed' && <span className="ad-badge ad-badge-green">已授权</span>}
+              </div>
+            ))}
+          </div>
+          <Link to="/admin/security" className="ad-drill" style={{ marginTop: 'var(--space-3)' }}>进入安全与审计 →</Link>
+        </div>
+      </div>
+
+      {/* Token 预算与节省 */}
+      <div className="ad-grid-2 mb-4" style={{ gridTemplateColumns: '1fr 300px' }}>
+        <div className="ad-card">
+          <div className="ad-card-title">
+            Token 预算与节省
+            <span className="sub">本月 · 单位：亿 Token</span>
+          </div>
+          <div className="ad-waterfall">
+            <div className="ad-wf-col base">
+              <div className="ad-wf-bar" style={{ height: `${(adminTokenWaterfall.baseline / wfMax) * 100}%` }} />
+              <span className="ad-wf-val">{adminTokenWaterfall.baseline}亿</span>
+              <div className="ad-wf-label">无优化基线</div>
+            </div>
+            {adminTokenWaterfall.cuts.map((c) => (
+              <div className="ad-wf-col cut" key={c.label}>
+                <div className="ad-wf-bar" style={{ height: `${Math.max((c.value / wfMax) * 100, 8)}%` }} />
+                <span className="ad-wf-val">−{c.value}</span>
+                <div className="ad-wf-label">{c.label}</div>
+              </div>
+            ))}
+            <div className="ad-wf-col final">
+              <div className="ad-wf-bar" style={{ height: `${(adminTokenWaterfall.actual / wfMax) * 100}%` }} />
+              <span className="ad-wf-val">{adminTokenWaterfall.actual}亿</span>
+              <div className="ad-wf-label">实际消耗</div>
+            </div>
+          </div>
+        </div>
+        <div className="ad-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-3)' }}>
+          <div className="ad-card-title" style={{ alignSelf: 'stretch' }}>预算执行</div>
+          <Ring value={adminTokenWaterfall.budgetRate} label="月度预算" color="var(--ad-blue)" />
+          <span className="ad-badge ad-badge-green">{adminTokenWaterfall.avoidNote}</span>
+          <Link to="/admin/token" className="ad-drill">进入 Token 驾驶舱 →</Link>
+        </div>
+      </div>
+
+      {/* 记忆使用与能力进化 */}
+      <div className="ad-card">
+        <div className="ad-card-title">
+          记忆使用与能力进化
+          <span className="sub">近 6 期 · 演示样例</span>
+          <span style={{ display: 'inline-flex', gap: 'var(--space-3)' }}>
+            <Link to="/admin/data-memory" className="ad-drill">进入数据与记忆 →</Link>
+            <Link to="/admin/evolution" className="ad-drill">进入经验与进化 →</Link>
+          </span>
+        </div>
+        <div className="ad-grid-3" style={{ gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 'var(--space-6)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)' }}>
+            <Ring value={adminMemoryEvolution.memoryRate} label="记忆使用" color="var(--ad-green)" />
+            <span className="ad-sb-note">{adminMemoryEvolution.memoryNote}</span>
+          </div>
+          <div>
+            <svg className="ad-timeline" viewBox="0 0 300 84" preserveAspectRatio="none" style={{ maxHeight: 96 }}>
+              <line x1="16" y1="70" x2="284" y2="70" stroke="var(--ad-border)" strokeWidth="1" />
+              <path d={tlPath} fill="none" stroke="var(--ad-cyan)" strokeWidth="2" strokeLinecap="round" style={{ filter: 'drop-shadow(0 0 4px rgba(0,212,255,0.5))' }} />
+              {tlPoints.map((p, i) => {
+                const x = 16 + (i / (tlPoints.length - 1)) * 268
+                const y = 70 - ((p.rate - 44) / 24) * 56
+                return (
+                  <g key={p.period}>
+                    <circle cx={x} cy={y} r="3" fill="var(--ad-card)" stroke="var(--ad-cyan)" strokeWidth="1.5" />
+                    <text x={x} y="82" textAnchor="middle" fontSize="8" fill="var(--ad-muted)">{p.period}</text>
+                  </g>
+                )
+              })}
+            </svg>
+            <div className="ad-metric-row" style={{ marginTop: 'var(--space-3)' }}>
+              {adminMemoryEvolution.deltas.map((d) => (
+                <div className="ad-metric" key={d.label}>
+                  <span className="k">{d.label}</span>
+                  <span className="v" style={{ color: 'var(--ad-green)' }}>{d.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="ad-card" style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid var(--ad-border-soft)', padding: 'var(--space-4)' }}>
+            <div className="ad-metric">
+              <span className="k">{adminMemoryEvolution.metric.k}</span>
+              <span className="v">{adminMemoryEvolution.metric.v}</span>
+              <span className="ad-sb-note">{adminMemoryEvolution.metric.note}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
